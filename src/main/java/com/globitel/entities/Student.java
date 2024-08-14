@@ -1,6 +1,5 @@
 package com.globitel.entities;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.util.List;
@@ -10,47 +9,53 @@ import java.util.Objects;
 @Table(name = "student")
 public class Student {
     // Student Attributes
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer ID;
 
-    @Column private String name;
+    @Column
+    private String name;
 
     @Column(name = "academic Level")
     private Integer level;
 
-    @Column private String email;
-    @Column private String phone;
-    @Column private String address;
-    @Column private Integer totalCreditHours;
+    @Column
+    private String email;
+    @Column
+    private String phone;
+    @Column
+    private String address;
+    @Column
+    private Integer currentCreditHours;
+    @Column
+    private Integer cumulativeCreditHours;
 
     // Student relationships
     @ManyToOne
-//    @JsonIgnore
     @JoinColumn(name = "department_id")
     private Department department;
 
-    @ManyToMany(mappedBy = "students")
-    private List<_Class> classes;
-
-    @ManyToMany(mappedBy = "students")
-    private List<Course> courses;
+    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Enrollment> enrollments;
 
     // Parameterized Constructor
-    public Student(Integer ID, String name, Integer level, String email, String phone, String address, Department department, List<_Class> classes, Integer totalCreditHours) {
+    public Student(Integer ID, String name, Integer level, String email, String phone, String address, Integer currentCreditHours, Integer cumulativeCreditHours, Department department, List<Enrollment> enrollments) {
         this.ID = ID;
         this.name = name;
         this.level = level;
         this.email = email;
         this.phone = phone;
         this.address = address;
+        this.currentCreditHours = currentCreditHours;
+        this.cumulativeCreditHours = cumulativeCreditHours;
         this.department = department;
-        this.classes = classes;
-        this.totalCreditHours = totalCreditHours;
+        this.enrollments = enrollments;
     }
 
     // No-arg Constructor
     public Student() {
-        this.totalCreditHours = 0;
+        this.currentCreditHours = 0;
+        this.cumulativeCreditHours = 0;
     }
 
     // Getters & Setters
@@ -110,38 +115,38 @@ public class Student {
         this.department = department;
     }
 
-    public List<_Class> getClasses() {
-        return classes;
+    public Integer getCurrentCreditHours() {
+        return currentCreditHours;
     }
 
-    public void setClasses(List<_Class> classes) {
-        this.classes = classes;
+    public void setCurrentCreditHours(Integer currentCreditHours) {
+        this.currentCreditHours = currentCreditHours;
     }
 
-    public Integer getTotalCreditHours() {
-        return totalCreditHours;
+    public Integer getCumulativeCreditHours() {
+        return cumulativeCreditHours;
     }
 
-    public void setTotalCreditHours(Integer totalCreditHours) {
-        this.totalCreditHours = totalCreditHours;
+    public void setCumulativeCreditHours(Integer cumulativeCreditHours) {
+        this.cumulativeCreditHours = cumulativeCreditHours;
     }
 
-    // equals() method
+    // equals() and hashCode()
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Student student = (Student) o;
-        return Objects.equals(ID, student.ID) && Objects.equals(name, student.name) && Objects.equals(level, student.level) && Objects.equals(email, student.email) && Objects.equals(phone, student.phone) && Objects.equals(address, student.address) && Objects.equals(totalCreditHours, student.totalCreditHours) && Objects.equals(department, student.department) && Objects.equals(classes, student.classes);
+        return Objects.equals(ID, student.ID) && Objects.equals(name, student.name) && Objects.equals(level, student.level) && Objects.equals(email, student.email) && Objects.equals(phone, student.phone) && Objects.equals(address, student.address) && Objects.equals(currentCreditHours, student.currentCreditHours) && Objects.equals(cumulativeCreditHours, student.cumulativeCreditHours) && Objects.equals(department, student.department) && Objects.equals(enrollments, student.enrollments);
     }
 
-    // hashCode() method
     @Override
     public int hashCode() {
-        return Objects.hash(ID, name, level, email, phone, address, totalCreditHours, department, classes);
+        return Objects.hash(ID, name, level, email, phone, address, currentCreditHours, cumulativeCreditHours, department, enrollments);
     }
 
     // toString() method
+
     @Override
     public String toString() {
         return "Student{" +
@@ -151,9 +156,10 @@ public class Student {
                 ", email='" + email + '\'' +
                 ", phone='" + phone + '\'' +
                 ", address='" + address + '\'' +
-                ", totalCreditHours=" + totalCreditHours +
+                ", currentCreditHours=" + currentCreditHours +
+                ", cumulativeCreditHours=" + cumulativeCreditHours +
                 ", department=" + department +
-                ", classes=" + classes +
+                ", classStudents=" + enrollments +
                 '}';
     }
 }

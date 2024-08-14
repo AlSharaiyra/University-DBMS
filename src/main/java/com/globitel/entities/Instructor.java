@@ -26,10 +26,10 @@ public class Instructor {
 
     @OneToMany(mappedBy = "instructor")
 //    @JsonIgnore
-    private List<_Class> classes;
+    private List<Class> classes;
 
     // Parameterized Constructor
-    public Instructor(Integer ID, String name, String email, String phone, String address, Department department, List<_Class> classes) {
+    public Instructor(Integer ID, String name, String email, String phone, String address, Department department, List<Class> classes) {
         this.ID = ID;
         this.name = name;
         this.email = email;
@@ -92,11 +92,11 @@ public class Instructor {
         this.department = department;
     }
 
-    public List<_Class> getClasses() {
+    public List<Class> getClasses() {
         return classes;
     }
 
-    public void setClasses(List<_Class> classes) {
+    public void setClasses(List<Class> classes) {
         this.classes = classes;
     }
 

@@ -17,6 +17,9 @@ public class Department {
     @Column
     private String name;
 
+    @Column
+    private Integer planHours;
+
     @Column(name = "students count")
     private Integer studentCount;
 
@@ -28,21 +31,24 @@ public class Department {
 
     // Department relationships
     @OneToMany(mappedBy = "department")
-//    @JsonIgnore
     private List<Student> students;
 
     @OneToMany(mappedBy = "department")
-//    @JsonIgnore
     private List<Instructor> instructors;
 
     @OneToMany(mappedBy = "department")
-//    @JsonIgnore
     private List<Course> courses;
 
+//    @OneToMany(mappedBy = "department")
+//    private List<Place> rooms;
+
     // Parameterized Constructor
-    public Department(Integer ID, String name, Integer studentCount, Integer instructorCount, Integer courseCount, List<Student> students, List<Instructor> instructors, List<Course> courses) {
+
+
+    public Department(Integer ID, String name, Integer planHours, Integer studentCount, Integer instructorCount, Integer courseCount, List<Student> students, List<Instructor> instructors, List<Course> courses) {
         this.ID = ID;
         this.name = name;
+        this.planHours = planHours;
         this.studentCount = studentCount;
         this.instructorCount = instructorCount;
         this.courseCount = courseCount;
@@ -123,27 +129,35 @@ public class Department {
         this.courses = courses;
     }
 
-    // equals() method
+    public Integer getPlanHours() {
+        return planHours;
+    }
+
+    public void setPlanHours(Integer planHours) {
+        this.planHours = planHours;
+    }
+
+    // equals() and hashCode()
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Department that = (Department) o;
-        return Objects.equals(ID, that.ID) && Objects.equals(name, that.name) && Objects.equals(studentCount, that.studentCount) && Objects.equals(instructorCount, that.instructorCount) && Objects.equals(courseCount, that.courseCount) && Objects.equals(students, that.students) && Objects.equals(instructors, that.instructors) && Objects.equals(courses, that.courses);
+        return Objects.equals(ID, that.ID) && Objects.equals(name, that.name) && Objects.equals(planHours, that.planHours) && Objects.equals(studentCount, that.studentCount) && Objects.equals(instructorCount, that.instructorCount) && Objects.equals(courseCount, that.courseCount) && Objects.equals(students, that.students) && Objects.equals(instructors, that.instructors) && Objects.equals(courses, that.courses);
     }
 
-    // hashCode() method
     @Override
     public int hashCode() {
-        return Objects.hash(ID, name, studentCount, instructorCount, courseCount, students, instructors, courses);
+        return Objects.hash(ID, name, planHours, studentCount, instructorCount, courseCount, students, instructors, courses);
     }
 
-    // toString() method
     @Override
     public String toString() {
         return "Department{" +
                 "ID=" + ID +
                 ", name='" + name + '\'' +
+                ", planHours=" + planHours +
                 ", studentCount=" + studentCount +
                 ", instructorCount=" + instructorCount +
                 ", courseCount=" + courseCount +

@@ -31,19 +31,11 @@ public class Course {
 
     @OneToMany(mappedBy = "course")
 //    @JsonIgnore
-    private List<_Class> classes;
-
-    @ManyToMany
-    @JoinTable(
-            name = "course_student",
-            joinColumns = @JoinColumn(name = "course_id"),
-            inverseJoinColumns = @JoinColumn(name = "student_id")
-    )
-    private List<Student> students;
+    private List<Class> classes;
 
 
     // Parameterized Constructor
-    public Course(Integer ID, String title, Integer creditHours, Integer noOfStudents, Department department, List<_Class> classes) {
+    public Course(Integer ID, String title, Integer creditHours, Integer noOfStudents, Department department, List<Class> classes) {
         this.ID = ID;
         this.title = title;
         this.creditHours = creditHours;
@@ -90,11 +82,11 @@ public class Course {
         this.department = department;
     }
 
-    public List<_Class> getClasses() {
+    public List<Class> getClasses() {
         return classes;
     }
 
-    public void setClasses(List<_Class> classes) {
+    public void setClasses(List<Class> classes) {
         this.classes = classes;
     }
 

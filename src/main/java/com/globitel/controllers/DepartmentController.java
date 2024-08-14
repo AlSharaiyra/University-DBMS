@@ -8,6 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.globitel.controllers.StudentController.StudentRecord;
+import com.globitel.controllers.InstructorController.InstructorRecord;
+import com.globitel.controllers.CourseController.CourseRecord;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,6 +31,7 @@ public class DepartmentController {
     public record DepartmentRecord(
             Integer department_id,
             String name,
+            Integer plan_hours,
             Integer student_count,
             Integer instructor_count,
             Integer course_count
@@ -41,6 +45,7 @@ public class DepartmentController {
                 .map(department -> new DepartmentRecord(
                         department.getID()
                         , department.getName()
+                        , department.getPlanHours()
                         , department.getStudentCount()
                         , department.getInstructorCount()
                         , department.getCourseCount()))
@@ -54,6 +59,7 @@ public class DepartmentController {
                 .map(department -> new DepartmentRecord(
                         department.getID()
                         , department.getName()
+                        , department.getPlanHours()
                         , department.getStudentCount()
                         , department.getInstructorCount()
                         , department.getCourseCount()))
@@ -61,7 +67,8 @@ public class DepartmentController {
     }
 
     public record newDepartment(
-            String name
+            String name,
+            Integer plan_hours
     ) {
     }
 
@@ -70,6 +77,7 @@ public class DepartmentController {
     public ResponseEntity<String> addDepartment(@RequestBody newDepartment request) {
         Department newDep = new Department();
         newDep.setName(request.name);
+        newDep.setPlanHours(request.plan_hours);
         departmentRepo.save(newDep);
 
         return ResponseEntity.status(HttpStatus.CREATED).body("Department added successfully");
@@ -81,6 +89,8 @@ public class DepartmentController {
         Department toEdit = departmentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + id));
         if (request.name != null && !request.name.isEmpty()) toEdit.setName(request.name);
+        if (request.plan_hours != null) toEdit.setPlanHours(request.plan_hours);
+
         departmentRepo.save(toEdit);
 
         return ResponseEntity.ok("Department updated successfully");
@@ -94,18 +104,6 @@ public class DepartmentController {
         departmentRepo.delete(toDelete);
 
         return ResponseEntity.ok("Department deleted successfully");
-    }
-
-    public record StudentRecord(
-            Integer student_id,
-            String name,
-            Integer level,
-            String email,
-            String phone,
-            String address,
-            String department,
-            Integer total_credit_hours
-    ) {
     }
 
     // Get All Students in a Department given ID
@@ -123,18 +121,10 @@ public class DepartmentController {
                         , student.getPhone()
                         , student.getAddress()
                         , student.getDepartment().getName()
-                        , student.getTotalCreditHours()))
+                        , student.getCurrentCreditHours()
+                        , student.getCumulativeCreditHours()
+                        , student.getDepartment().getPlanHours()))
                 .collect(Collectors.toList());
-    }
-
-    public record InstructorRecord(
-            Integer instructor_id,
-            String name,
-            String email,
-            String phone,
-            String address,
-            String department
-    ) {
     }
 
     // Get All Instructors in a Department given ID
@@ -155,14 +145,6 @@ public class DepartmentController {
 
     }
 
-    public record CourseRecord(
-            Integer course_id,
-            String title,
-            Integer credit_hours,
-            String department
-    ) {
-    }
-
     // Get All Courses in a Department given ID
     @GetMapping("/{id}/courses")
     public List<CourseRecord> getCourses(@PathVariable Integer id) {
@@ -174,6 +156,7 @@ public class DepartmentController {
                         course.getID()
                         , course.getTitle()
                         , course.getCreditHours()
+                        , course.getNoOfStudents()
                         , course.getDepartment().getName()))
                 .collect(Collectors.toList());
     }

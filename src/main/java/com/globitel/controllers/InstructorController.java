@@ -3,19 +3,19 @@ package com.globitel.controllers;
 import com.globitel.Main;
 import com.globitel.entities.Department;
 import com.globitel.entities.Instructor;
-import com.globitel.entities._Class;
+import com.globitel.entities.Class;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
 import com.globitel.repos.DepartmentRepo;
 import com.globitel.repos.InstructorRepo;
 import com.globitel.repos.StudentRepo;
-import com.globitel.repos._ClassRepo;
+import com.globitel.repos.ClassRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import com.globitel.controllers.DepartmentController.InstructorRecord;
-import com.globitel.controllers.CourseController.ClassRecord;
+import com.globitel.controllers.ClassController.ClassRecord;
 
 
 import java.util.List;
@@ -29,11 +29,21 @@ public class InstructorController {
     @Autowired
     private DepartmentRepo departmentRepo;
     @Autowired
-    private _ClassRepo classRepo;
+    private ClassRepo classRepo;
     @Autowired
     private StudentRepo studentRepo;
     @Autowired
     Main mainApp;
+
+    public record InstructorRecord(
+            Integer instructor_id,
+            String name,
+            String email,
+            String phone,
+            String address,
+            String department
+    ) {
+    }
 
     // Get All Instructors
     @GetMapping("")
@@ -71,6 +81,17 @@ public class InstructorController {
     ) {
     }
 
+    @Transactional
+    public void saveInstructor(Department department, Instructor instructor){
+        try {
+            departmentRepo.save(department);
+            instructorRepo.save(instructor);
+        }
+        catch (Exception e){
+            throw new RuntimeException("Failed to add instructor", e);
+        }
+    }
+
     // Add a new Instructor
     @PostMapping("")
     public ResponseEntity<String> addInstructor(@RequestBody newInstructor request) {
@@ -91,9 +112,10 @@ public class InstructorController {
         department.setInstructorCount(department.getInstructorCount() + 1);
 
         instructor.setDepartment(department);
-        departmentRepo.save(department);
-        instructorRepo.save(instructor);
+//        departmentRepo.save(department);
+//        instructorRepo.save(instructor);
 
+        saveInstructor(department, instructor);
         return ResponseEntity.status(HttpStatus.CREATED).body("Instructor added successfully");
     }
 
@@ -126,6 +148,17 @@ public class InstructorController {
         return ResponseEntity.ok("Instructor updated successfully");
     }
 
+    @Transactional
+    public void deleteInstructor(Department department, Instructor instructor){
+        try {
+            instructorRepo.delete(instructor);
+            departmentRepo.save(department);
+        }
+        catch (Exception e){
+            throw new RuntimeException("Failed to delete instructor", e);
+        }
+    }
+
     // Delete existing Instructor given ID
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteInstructor(@PathVariable Integer id) {
@@ -133,15 +166,27 @@ public class InstructorController {
                 .orElseThrow(() -> new ResourceNotFoundException("Instructor not found with name: " + id));
         Department department = toDelete.getDepartment();
         department.setStudentCount(department.getStudentCount() - 1);
-        instructorRepo.delete(toDelete);
-        departmentRepo.save(department);
+//        instructorRepo.delete(toDelete);
+//        departmentRepo.save(department);
 
+        deleteInstructor(department, toDelete);
         return ResponseEntity.ok("Instructor deleted successfully");
     }
 
     public record ClassId(
             Integer class_id
     ) {
+    }
+
+    @Transactional
+    public void saveInstructorAndClass(Instructor instructor, Class clazz){
+        try {
+            instructorRepo.save(instructor);
+            classRepo.save(clazz);
+        }
+        catch (Exception e){
+            throw new RuntimeException("Failed to assign class to instructor", e);
+        }
     }
 
     // Assign an instructor to a class given instructor ID
@@ -151,23 +196,23 @@ public class InstructorController {
                 .orElseThrow(() -> new ResourceNotFoundException("Instructor not found with ID: " + id));
 
         // Retrieve the class by ID
-        _Class _class = classRepo.findById(request.class_id)
+        Class clazz = classRepo.findById(request.class_id)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found with ID:" + request.class_id));
 
         // Add the class to the instructor's list of classes
-        if (!instructor.getClasses().contains(_class) && _class.getInstructor() == null) {
-            _class.setInstructor(instructor);
-            instructor.getClasses().add(_class);
+        if (!instructor.getClasses().contains(clazz) && clazz.getInstructor() == null) {
+            clazz.setInstructor(instructor);
+            instructor.getClasses().add(clazz);
         }
-        else if (_class.getInstructor() != null)
+        else if (clazz.getInstructor() != null)
             throw new IllegalStateException("This class is already assigned to another instructor");
 
         else throw new IllegalStateException("This class is already assigned to this instructor");
 
-        // Save the updated entities
-        instructorRepo.save(instructor);
-        classRepo.save(_class);
+//        instructorRepo.save(instructor);
+//        classRepo.save(clazz);
 
+        saveInstructorAndClass(instructor, clazz);
         return ResponseEntity.ok("Instructor with ID: " + id + " assigned the class with ID: " + request.class_id + " successfully");
     }
 
@@ -177,15 +222,16 @@ public class InstructorController {
         Instructor instructor = instructorRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Instructor not found with ID: " + id));
 
-        return instructor.getClasses().stream().map(_class -> new CourseController.ClassRecord(
-                        _class.getID()
-                        , _class.getDays()
-                        , _class.getTime()
-                        , _class.getHall_lab()
-                        , _class.getCapacity()
-                        , _class.getRegistered()
-                        , _class.getCourse().getTitle()
-                        , _class.getCourse().getDepartment().getName()))
+        return instructor.getClasses().stream().map(clazz -> new ClassRecord(
+                        clazz.getID(),
+                        clazz.getReservation().getPlace().getName(),
+                        clazz.getReservation().getPlace().getType(),
+                        clazz.getReservation().getDays(),
+                        clazz.getReservation().getTime(),
+                        clazz.getReservation().getPlace().getCapacity(),
+                        clazz.getRegistered(),
+                        clazz.getCourse().getTitle(),
+                        clazz.getCourse().getDepartment().getName()))
                 .collect(Collectors.toList());
     }
 }

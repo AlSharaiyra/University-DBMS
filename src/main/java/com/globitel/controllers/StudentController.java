@@ -1,21 +1,17 @@
 package com.globitel.controllers;
 
 import com.globitel.Main;
-import com.globitel.entities.Department;
-import com.globitel.entities.Student;
-import com.globitel.entities._Class;
+import com.globitel.Status;
+import com.globitel.entities.*;
+import com.globitel.entities.Class;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
-import com.globitel.repos.DepartmentRepo;
-import com.globitel.repos.InstructorRepo;
-import com.globitel.repos.StudentRepo;
-import com.globitel.repos._ClassRepo;
+import com.globitel.repos.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import com.globitel.controllers.DepartmentController.StudentRecord;
-import com.globitel.controllers.CourseController.ClassRecord;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,17 +24,36 @@ public class StudentController {
     @Autowired
     private DepartmentRepo departmentRepo;
     @Autowired
-    private _ClassRepo classRepo;
+    private ClassRepo classRepo;
     @Autowired
     private InstructorRepo instructorRepo;
     @Autowired
     private Main mainApp;
+    @Autowired
+    private EnrollmentRepo enrollmentRepo;
+    @Autowired
+    private CourseRepo courseRepo;
+
+    public record StudentRecord(
+            Integer student_id,
+            String name,
+            Integer level,
+            String email,
+            String phone,
+            String address,
+            String department,
+            Integer current_credit_hours,
+            Integer cumulative_credit_hours,
+            Integer plan_hours
+    ) {
+    }
+
 
     // Get All Students
     @GetMapping("")
     public List<StudentRecord> getAllStudents() {
         return studentRepo.findAll().stream()
-                .map(student -> new DepartmentController.StudentRecord(
+                .map(student -> new StudentRecord(
                         student.getID()
                         , student.getName()
                         , student.getLevel()
@@ -46,7 +61,9 @@ public class StudentController {
                         , student.getPhone()
                         , student.getAddress()
                         , student.getDepartment().getName()
-                        , student.getTotalCreditHours()))
+                        , student.getCurrentCreditHours()
+                        , student.getCumulativeCreditHours()
+                        , student.getDepartment().getPlanHours()))
                 .collect(Collectors.toList());
     }
 
@@ -61,7 +78,9 @@ public class StudentController {
                         , student.getPhone()
                         , student.getAddress()
                         , student.getDepartment().getName()
-                        , student.getTotalCreditHours()))
+                        , student.getCurrentCreditHours()
+                        , student.getCumulativeCreditHours()
+                        , student.getDepartment().getPlanHours()))
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
     }
 
@@ -73,6 +92,16 @@ public class StudentController {
             String address,
             Integer department_id
     ) {
+    }
+
+    @Transactional
+    public void saveStudent(Department department, Student student) {
+        try {
+            departmentRepo.save(department);
+            studentRepo.save(student);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add student", e);
+        }
     }
 
     // Add a new Student
@@ -97,9 +126,10 @@ public class StudentController {
 
 
         student.setDepartment(department);
-        departmentRepo.save(department);
-        studentRepo.save(student);
+//        departmentRepo.save(department);
+//        studentRepo.save(student);
 
+        saveStudent(department, student);
         return ResponseEntity.status(HttpStatus.CREATED).body("Student added successfully");
     }
 
@@ -132,6 +162,16 @@ public class StudentController {
         return ResponseEntity.ok("Student updated successfully");
     }
 
+    @Transactional
+    public void deleteStudent(Department department, Student student) {
+        try {
+            studentRepo.delete(student);
+            departmentRepo.save(department);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete student", e);
+        }
+    }
+
     // Delete existing Student given ID
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteStudent(@PathVariable Integer id) {
@@ -140,69 +180,118 @@ public class StudentController {
 
         Department department = toDelete.getDepartment();
         department.setStudentCount(department.getStudentCount() - 1);
-        studentRepo.delete(toDelete);
-        departmentRepo.save(department);
+//        studentRepo.delete(toDelete);
+//        departmentRepo.save(department);
 
+        deleteStudent(department, toDelete);
         return ResponseEntity.ok("Student deleted successfully");
     }
 
-    public record ClassId(
+    public record ClassID(
             Integer class_id
     ) {
     }
 
+    @Transactional
+    public void saveEnrollment(Enrollment enrollment, Class clazz, Course course, Student student) {
+        try {
+            enrollmentRepo.save(enrollment);
+            classRepo.save(clazz);
+            courseRepo.save(course);
+            studentRepo.save(student);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to assign student to class", e);
+        }
+    }
+
     // Assign a student to a class given student ID
-    @PostMapping("/{id}/classes")
-    public ResponseEntity<String> assignClassToStudent(@PathVariable Integer id, @RequestBody ClassId request) {
-        Student student = studentRepo.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+    @PostMapping("/{studentId}/classes")
+    public ResponseEntity<String> assignClassToStudent(@PathVariable Integer studentId, @RequestBody ClassID request) {
+        Student student = studentRepo.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + studentId));
 
         // Retrieve the class by ID
-        _Class _class = classRepo.findById(request.class_id)
+        Class clazz = classRepo.findById(request.class_id)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found with ID:" + request.class_id));
 
-        boolean alreadyEnrolled = student.getClasses().stream()
-                .anyMatch(c -> c.getCourse().equals(_class.getCourse()));
 
-        if (student.getClasses().contains(_class))
+        // Check if the student is already enrolled in this class
+        boolean alreadyEnrolledInThisClass = enrollmentRepo.existsByStudentAndClazz(student, clazz);
+        if (alreadyEnrolledInThisClass) {
             throw new IllegalStateException("The student is already enrolled in this class");
+        }
 
-        if (alreadyEnrolled) {
+        // Check if the student is already enrolled in another class of the same course
+        boolean alreadyEnrolledInSameCourse = enrollmentRepo.existsByStudentAndClazzCourse(student, clazz.getCourse());
+        if (alreadyEnrolledInSameCourse) {
             throw new IllegalStateException("The student is already enrolled in another class of the same course");
         }
-        // Add the class to the instructor's list of classes
-        if (!student.getClasses().contains(_class) && _class.getRegistered() < _class.getCapacity()) {
-            _class.getStudents().add(student);
-            _class.setRegistered(_class.getRegistered() + 1);
-            student.getClasses().add(_class);
-            student.setTotalCreditHours(student.getTotalCreditHours() + _class.getCourse().getCreditHours());
-        }
-        else if (_class.getRegistered() >= _class.getCapacity())
+
+        // Check if the class is full
+        if (clazz.getRegistered() >= clazz.getReservation().getPlace().getCapacity()) {
             throw new IllegalStateException("This class is full");
+        }
 
-        // Save the updated entities
-        studentRepo.save(student);
-        classRepo.save(_class);
+        EnrollmentID id = new EnrollmentID();
+        id.setClassID(clazz.getID());
+        id.setStudentID(student.getID());
 
-        return ResponseEntity.ok("Student with ID: " + id + " joined the class with ID: " + request.class_id + " successfully");
+        Enrollment enrollment = new Enrollment();
+        enrollment.setID(id);
+        enrollment.setClazz(clazz);
+        enrollment.setStudent(student);
+        enrollment.setStatus(Status.ACTIVE);
+        enrollment.setGrade(null);
+
+        clazz.setRegistered(clazz.getRegistered() + 1);
+        clazz.getCourse().setNoOfStudents(clazz.getCourse().getNoOfStudents() + 1);
+        student.setCurrentCreditHours(student.getCurrentCreditHours() + clazz.getCourse().getCreditHours());
+
+//        classStudentRepo.save(classStudent);
+//        classRepo.save(clazz);
+
+        saveEnrollment(enrollment, clazz, clazz.getCourse(), student);
+        return ResponseEntity.ok("Student with ID: " + studentId + " joined the class with ID: " + request.class_id + " successfully");
+    }
+
+    public record ClassStudentRecord(
+            Integer class_id,
+            String place,
+            String type,
+            String days,
+            String time,
+            Integer capacity,
+            Integer registered,
+            String course,
+            String department,
+            Status status,
+            Double grade
+    ) {
     }
 
     // Get all classes joined by a student given ID
     @GetMapping("/{id}/classes")
-    public List<ClassRecord> getAllClasses(@PathVariable Integer id) {
+    public List<ClassStudentRecord> getAllClasses(@PathVariable Integer id) {
         Student student = studentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
 
-        return student.getClasses().stream().map(_class -> new ClassRecord(
-                        _class.getID()
-                        , _class.getDays()
-                        , _class.getTime()
-                        , _class.getHall_lab()
-                        , _class.getCapacity()
-                        , _class.getRegistered()
-                        , _class.getCourse().getTitle()
-                        , _class.getCourse().getDepartment().getName()))
-                .collect(Collectors.toList());
-    }
+        List<Enrollment> enrollments = enrollmentRepo.findByStudent(student);
 
+        return enrollments.stream().map(classStudent -> {
+            Class clazz = classStudent.getClazz();
+            return new ClassStudentRecord(
+                    clazz.getID(),
+                    clazz.getReservation().getPlace().getName(),
+                    clazz.getReservation().getPlace().getType(),
+                    clazz.getReservation().getDays(),
+                    clazz.getReservation().getTime(),
+                    clazz.getReservation().getPlace().getCapacity(),
+                    clazz.getRegistered(),
+                    clazz.getCourse().getTitle(),
+                    clazz.getCourse().getDepartment().getName(),
+                    classStudent.getStatus(),
+                    classStudent.getGrade()
+            );
+        }).collect(Collectors.toList());
+    }
 }

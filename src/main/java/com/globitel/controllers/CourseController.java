@@ -2,14 +2,17 @@ package com.globitel.controllers;
 
 import com.globitel.entities.*;
 import com.globitel.exceptions.ResourceNotFoundException;
+import com.globitel.repos.ClassRepo;
 import com.globitel.repos.CourseRepo;
 import com.globitel.repos.DepartmentRepo;
-import com.globitel.repos._ClassRepo;
+
+import com.globitel.entities.Class;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import com.globitel.controllers.DepartmentController.CourseRecord;
+import com.globitel.controllers.ClassController.ClassRecord;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,7 +25,17 @@ public class CourseController {
     @Autowired
     private DepartmentRepo departmentRepo;
     @Autowired
-    private _ClassRepo _classRepo;
+    private ClassRepo classRepo;
+
+
+    public record CourseRecord(
+            Integer course_id,
+            String title,
+            Integer credit_hours,
+            Integer registered,
+            String department
+    ) {
+    }
 
     // Get All Courses
     @GetMapping("")
@@ -31,8 +44,9 @@ public class CourseController {
                 .map(course -> new CourseRecord(
                         course.getID()
                         , course.getTitle()
-                        , course.getCreditHours(),
-                        course.getDepartment().getName()))
+                        , course.getCreditHours()
+                        , course.getNoOfStudents()
+                        , course.getDepartment().getName()))
                 .collect(Collectors.toList());
     }
 
@@ -42,16 +56,28 @@ public class CourseController {
         return courseRepo.findById(id).map(course -> new CourseRecord(
                         course.getID()
                         , course.getTitle()
-                        , course.getCreditHours(),
-                        course.getDepartment().getName()))
+                        , course.getCreditHours()
+                        , course.getNoOfStudents()
+                        , course.getDepartment().getName()))
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with ID: " + id));
     }
 
     public record newCourse(
             String title,
-            Integer creditHours,
+            Integer credit_hours,
             Integer department_id
     ) {
+    }
+
+    @Transactional
+    public void saveCourse(Department department, Course course){
+        try {
+            departmentRepo.save(department);
+            courseRepo.save(course);
+        }
+        catch (Exception e){
+            throw new RuntimeException("Failed to save course", e);
+        }
     }
 
     // Add a new Course
@@ -60,21 +86,23 @@ public class CourseController {
         Course course = new Course();
         Department department = departmentRepo.findById(request.department_id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + request.department_id));
+
         department.setCourseCount(department.getCourseCount() + 1);
 
         course.setTitle(request.title);
         course.setDepartment(department);
-        course.setCreditHours(request.creditHours);
+        course.setCreditHours(request.credit_hours);
 
-        departmentRepo.save(department);
-        courseRepo.save(course);
+//        departmentRepo.save(department);
+//        courseRepo.save(course);
 
+        saveCourse(department, course);
         return ResponseEntity.status(HttpStatus.CREATED).body("Course added successfully");
     }
 
     public record editedCourse(
             String title,
-            Integer creditHours
+            Integer credit_hours
     ) {
     }
 
@@ -84,7 +112,7 @@ public class CourseController {
         Course toEdit = courseRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with ID: " + id));
         if (request.title != null && !request.title.isEmpty()) toEdit.setTitle(request.title);
-        if (request.creditHours != null) toEdit.setCreditHours(request.creditHours);
+        if (request.credit_hours != null) toEdit.setCreditHours(request.credit_hours);
 //        if (request.department != null) {
 //            Department department = departmentRepo.findById(request.department)
 //                    .orElseThrow(() -> new ResourceNotFoundException("Department not found with name: " + request.department));
@@ -95,6 +123,18 @@ public class CourseController {
         return ResponseEntity.ok("Course updated successfully");
     }
 
+    @Transactional
+    public void deleteCourse(Department department, Course course){
+        try {
+            courseRepo.delete(course);
+            departmentRepo.save(department);
+        }
+        catch (Exception e){
+            throw new RuntimeException("Failed to delete course", e);
+        }
+    }
+
+
     // Delete existing Course given ID
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteCourse(@PathVariable Integer id) {
@@ -103,23 +143,14 @@ public class CourseController {
         Department department = toDelete.getDepartment();
         department.setCourseCount(department.getCourseCount() - 1);
 
-        courseRepo.delete(toDelete);
-        departmentRepo.save(department);
+//        courseRepo.delete(toDelete);
+//        departmentRepo.save(department);
+
+        deleteCourse(department, toDelete);
 
         return ResponseEntity.ok("Course deleted successfully");
     }
 
-    public record ClassRecord(
-            Integer class_id,
-            String days,
-            String time,
-            String hall_lab,
-            Integer capacity,
-            Integer registered,
-            String course,
-            String department
-    ) {
-    }
 
     // Get all Classes of a Course given ID
     @GetMapping("/{id}/classes")
@@ -127,16 +158,17 @@ public class CourseController {
         Course course = courseRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with ID: " + id));
 
-        return _classRepo.findByCourse(course).stream()
-                .map(_class -> new ClassRecord(
-                        _class.getID()
-                        , _class.getDays()
-                        , _class.getTime()
-                        , _class.getHall_lab()
-                        , _class.getCapacity()
-                        , _class.getRegistered()
-                        , _class.getCourse().getTitle()
-                        , _class.getCourse().getDepartment().getName()))
+        return classRepo.findByCourse(course).stream()
+                .map(clazz -> new ClassRecord(
+                        clazz.getID(),
+                        clazz.getReservation().getPlace().getName(),
+                        clazz.getReservation().getPlace().getType(),
+                        clazz.getReservation().getDays(),
+                        clazz.getReservation().getTime(),
+                        clazz.getReservation().getPlace().getCapacity(),
+                        clazz.getRegistered(),
+                        clazz.getCourse().getTitle(),
+                        clazz.getCourse().getDepartment().getName()))
                 .collect(Collectors.toList());
     }
 
