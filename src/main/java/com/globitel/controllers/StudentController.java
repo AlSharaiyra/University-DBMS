@@ -1,9 +1,11 @@
 package com.globitel.controllers;
 
+import com.globitel.Day;
 import com.globitel.Main;
 import com.globitel.Status;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
+import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
 import com.globitel.repos.*;
@@ -13,7 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -33,6 +37,8 @@ public class StudentController {
     private EnrollmentRepo enrollmentRepo;
     @Autowired
     private CourseRepo courseRepo;
+    @Autowired
+    private ReservationRepo reservationRepo;
 
     public record StudentRecord(
             Integer student_id,
@@ -206,7 +212,7 @@ public class StudentController {
 
     // Assign a student to a class given student ID
     @PostMapping("/{studentId}/classes")
-    public ResponseEntity<String> assignClassToStudent(@PathVariable Integer studentId, @RequestBody ClassID request) {
+    public ResponseEntity<String> assignStudentToClass(@PathVariable Integer studentId, @RequestBody ClassID request) {
         Student student = studentRepo.findById(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + studentId));
 
@@ -215,15 +221,20 @@ public class StudentController {
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found with ID:" + request.class_id));
 
 
+        Reservation classReservation = clazz.getReservation();
+        List<Enrollment> conflicts = enrollmentRepo.findConflictingEnrollments(student, clazz, classReservation.getDays(), classReservation.getStartTime(), classReservation.getEndTime());
+
+        if (!conflicts.isEmpty()) {
+            throw new ConflictException("The student has a scheduling conflict with another class.");
+        }
+
         // Check if the student is already enrolled in this class
-        boolean alreadyEnrolledInThisClass = enrollmentRepo.existsByStudentAndClazz(student, clazz);
-        if (alreadyEnrolledInThisClass) {
+        if (enrollmentRepo.existsByStudentAndClazz(student, clazz)) {
             throw new IllegalStateException("The student is already enrolled in this class");
         }
 
         // Check if the student is already enrolled in another class of the same course
-        boolean alreadyEnrolledInSameCourse = enrollmentRepo.existsByStudentAndClazzCourse(student, clazz.getCourse());
-        if (alreadyEnrolledInSameCourse) {
+        if (enrollmentRepo.existsByStudentAndClazzCourse(student, clazz.getCourse())) {
             throw new IllegalStateException("The student is already enrolled in another class of the same course");
         }
 
@@ -258,8 +269,9 @@ public class StudentController {
             Integer class_id,
             String place,
             String type,
-            String days,
-            String time,
+            Set<Day> days,
+            LocalTime startTime,
+            LocalTime endTime,
             Integer capacity,
             Integer registered,
             String course,
@@ -284,7 +296,8 @@ public class StudentController {
                     clazz.getReservation().getPlace().getName(),
                     clazz.getReservation().getPlace().getType(),
                     clazz.getReservation().getDays(),
-                    clazz.getReservation().getTime(),
+                    clazz.getReservation().getStartTime(),
+                    clazz.getReservation().getEndTime(),
                     clazz.getReservation().getPlace().getCapacity(),
                     clazz.getRegistered(),
                     clazz.getCourse().getTitle(),

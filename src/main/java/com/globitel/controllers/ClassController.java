@@ -1,8 +1,11 @@
 package com.globitel.controllers;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.globitel.Day;
 import com.globitel.Status;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
+import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.ResourceNotFoundException;
 import com.globitel.repos.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +14,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.globitel.controllers.InstructorController.InstructorRecord;
@@ -36,8 +41,9 @@ public class ClassController {
             Integer class_id,
             String place,
             String type,
-            String days,
-            String time,
+            Set<Day> days,
+            LocalTime startTime,
+            LocalTime endTime,
             Integer capacity,
             Integer registered,
             String course,
@@ -54,7 +60,8 @@ public class ClassController {
                         clazz.getReservation().getPlace().getName(),
                         clazz.getReservation().getPlace().getType(),
                         clazz.getReservation().getDays(),
-                        clazz.getReservation().getTime(),
+                        clazz.getReservation().getStartTime(),
+                        clazz.getReservation().getEndTime(),
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
@@ -70,7 +77,8 @@ public class ClassController {
                         clazz.getReservation().getPlace().getName(),
                         clazz.getReservation().getPlace().getType(),
                         clazz.getReservation().getDays(),
-                        clazz.getReservation().getTime(),
+                        clazz.getReservation().getStartTime(),
+                        clazz.getReservation().getEndTime(),
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
@@ -79,8 +87,11 @@ public class ClassController {
     }
 
     public record newClass(
-            String days,
-            String time,
+            Set<Day> days,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime start_time,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime end_time,
             Integer place_id,
             Integer course_id
     ) {
@@ -106,10 +117,21 @@ public class ClassController {
         Place place = placeRepo.findById(request.place_id)
                 .orElseThrow(() -> new ResourceNotFoundException("Place not found with ID: " + request.place_id));
 
+        if (request.end_time.isBefore(request.start_time)){
+            throw new IllegalStateException("End time should be after start time");
+        }
+
+        List<Reservation> conflicts = reservationRepo.findConflictingReservations(place, request.days, request.start_time, request.end_time);
+
+        if (!conflicts.isEmpty()) {
+            throw new ConflictException("There is a reservation conflict at the place: " + place.getName());
+        }
+
         Reservation reservation = new Reservation();
 
         reservation.setDays(request.days);
-        reservation.setTime(request.time);
+        reservation.setStartTime(request.start_time);
+        reservation.setEndTime(request.end_time);
         reservation.setWhatFor("Class");
         reservation.setPlace(place);
         toAdd.setCourse(course);

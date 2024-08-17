@@ -1,15 +1,13 @@
 package com.globitel.controllers;
 
+import com.globitel.Day;
 import com.globitel.Main;
-import com.globitel.entities.Department;
-import com.globitel.entities.Instructor;
+import com.globitel.entities.*;
 import com.globitel.entities.Class;
+import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
-import com.globitel.repos.DepartmentRepo;
-import com.globitel.repos.InstructorRepo;
-import com.globitel.repos.StudentRepo;
-import com.globitel.repos.ClassRepo;
+import com.globitel.repos.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import com.globitel.controllers.ClassController.ClassRecord;
 
 
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,6 +33,8 @@ public class InstructorController {
     private StudentRepo studentRepo;
     @Autowired
     Main mainApp;
+    @Autowired
+    private ReservationRepo reservationRepo;
 
     public record InstructorRecord(
             Integer instructor_id,
@@ -82,12 +83,11 @@ public class InstructorController {
     }
 
     @Transactional
-    public void saveInstructor(Department department, Instructor instructor){
+    public void saveInstructor(Department department, Instructor instructor) {
         try {
             departmentRepo.save(department);
             instructorRepo.save(instructor);
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Failed to add instructor", e);
         }
     }
@@ -149,12 +149,11 @@ public class InstructorController {
     }
 
     @Transactional
-    public void deleteInstructor(Department department, Instructor instructor){
+    public void deleteInstructor(Department department, Instructor instructor) {
         try {
             instructorRepo.delete(instructor);
             departmentRepo.save(department);
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Failed to delete instructor", e);
         }
     }
@@ -179,12 +178,11 @@ public class InstructorController {
     }
 
     @Transactional
-    public void saveInstructorAndClass(Instructor instructor, Class clazz){
+    public void saveInstructorAndClass(Instructor instructor, Class clazz) {
         try {
             instructorRepo.save(instructor);
             classRepo.save(clazz);
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Failed to assign class to instructor", e);
         }
     }
@@ -199,18 +197,27 @@ public class InstructorController {
         Class clazz = classRepo.findById(request.class_id)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found with ID:" + request.class_id));
 
-        // Add the class to the instructor's list of classes
-        if (!instructor.getClasses().contains(clazz) && clazz.getInstructor() == null) {
-            clazz.setInstructor(instructor);
-            instructor.getClasses().add(clazz);
+        Reservation classReservation = clazz.getReservation();
+
+        List<Class> conflicts = classRepo.findConflictingClasses(instructor, clazz, classReservation.getDays(), classReservation.getStartTime(), classReservation.getEndTime());
+
+        if (!conflicts.isEmpty()) {
+            throw new ConflictException("The instructor has a scheduling conflict with another class.");
         }
-        else if (clazz.getInstructor() != null)
+
+        // Check if the class is already assigned to another instructor
+        if (clazz.getInstructor() != null && !clazz.getInstructor().equals(instructor)) {
             throw new IllegalStateException("This class is already assigned to another instructor");
+        }
 
-        else throw new IllegalStateException("This class is already assigned to this instructor");
+        // Check if the instructor is already assigned to this class
+        if (instructor.getClasses().contains(clazz)) {
+            throw new IllegalStateException("This instructor is already assigned to this class");
+        }
 
-//        instructorRepo.save(instructor);
-//        classRepo.save(clazz);
+        // Assign the class to the instructor
+        clazz.setInstructor(instructor);
+        instructor.getClasses().add(clazz);
 
         saveInstructorAndClass(instructor, clazz);
         return ResponseEntity.ok("Instructor with ID: " + id + " assigned the class with ID: " + request.class_id + " successfully");
@@ -227,7 +234,8 @@ public class InstructorController {
                         clazz.getReservation().getPlace().getName(),
                         clazz.getReservation().getPlace().getType(),
                         clazz.getReservation().getDays(),
-                        clazz.getReservation().getTime(),
+                        clazz.getReservation().getStartTime(),
+                        clazz.getReservation().getEndTime(),
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
