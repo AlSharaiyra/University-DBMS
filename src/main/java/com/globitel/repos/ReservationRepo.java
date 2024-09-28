@@ -1,8 +1,7 @@
 package com.globitel.repos;
 
-import com.globitel.Day;
+import com.globitel.enums.Day;
 import com.globitel.entities.*;
-import com.globitel.entities.Class;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,9 +13,8 @@ import java.util.Set;
 
 @Repository
 public interface ReservationRepo extends JpaRepository<Reservation, Integer> {
-//    @Query("SELECT r FROM Reservation r WHERE r.place = :place AND EXISTS (SELECT 1 FROM Reservation r2 WHERE r2 = r AND :newDay MEMBER OF r.days AND r.startTime < :newEndTime AND r.endTime > :newStartTime)")
 
-    @Query("SELECT r FROM Reservation r WHERE r.place = :place AND EXISTS " +
+    @Query("SELECT r FROM Reservation r WHERE r.place = :place AND r.clazz.classStatus = com.globitel.enums.ClassStatus.ACTIVE AND EXISTS " +
             "(SELECT d FROM Reservation res JOIN res.days d WHERE res = r " +
             "AND d IN :days AND r.startTime < :endTime AND r.endTime > :startTime)")
     List<Reservation> findConflictingReservations(
@@ -25,4 +23,5 @@ public interface ReservationRepo extends JpaRepository<Reservation, Integer> {
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime
     );
+
 }

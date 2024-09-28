@@ -89,6 +89,7 @@ public class CourseController {
 
         department.setCourseCount(department.getCourseCount() + 1);
 
+        course.setNoOfStudents(0);
         course.setTitle(request.title);
         course.setDepartment(department);
         course.setCreditHours(request.credit_hours);
@@ -169,7 +170,8 @@ public class CourseController {
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
-                        clazz.getCourse().getDepartment().getName()))
+                        clazz.getCourse().getDepartment().getName(),
+                        clazz.getClassStatus()))
                 .collect(Collectors.toList());
     }
 

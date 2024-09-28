@@ -78,6 +78,9 @@ public class DepartmentController {
         Department newDep = new Department();
         newDep.setName(request.name);
         newDep.setPlanHours(request.plan_hours);
+        newDep.setStudentCount(0);
+        newDep.setInstructorCount(0);
+        newDep.setCourseCount(0);
         departmentRepo.save(newDep);
 
         return ResponseEntity.status(HttpStatus.CREATED).body("Department added successfully");

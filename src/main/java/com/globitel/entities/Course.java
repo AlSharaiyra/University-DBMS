@@ -1,13 +1,17 @@
 package com.globitel.entities;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
-import java.util.Objects;
 
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 @Entity
-@Table(name = "course")
 public class Course {
     // Course Attributes
     @Id
@@ -25,106 +29,11 @@ public class Course {
 
     // Course relationships
     @ManyToOne
-//    @JsonIgnore
     @JoinColumn(name = "department_id")
     private Department department;
 
     @OneToMany(mappedBy = "course")
-//    @JsonIgnore
     private List<Class> classes;
 
 
-    // Parameterized Constructor
-    public Course(Integer ID, String title, Integer creditHours, Integer noOfStudents, Department department, List<Class> classes) {
-        this.ID = ID;
-        this.title = title;
-        this.creditHours = creditHours;
-        this.noOfStudents = noOfStudents;
-        this.department = department;
-        this.classes = classes;
-    }
-
-    // No-arg Constructor
-    public Course() {
-        this.noOfStudents = 0;
-    }
-
-    // Getters & Setters
-    public Integer getID() {
-        return ID;
-    }
-
-    public void setID(Integer ID) {
-        this.ID = ID;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public Integer getCreditHours() {
-        return creditHours;
-    }
-
-    public void setCreditHours(Integer creditHours) {
-        this.creditHours = creditHours;
-    }
-
-    public Department getDepartment() {
-        return department;
-    }
-
-    public void setDepartment(Department department) {
-        this.department = department;
-    }
-
-    public List<Class> getClasses() {
-        return classes;
-    }
-
-    public void setClasses(List<Class> classes) {
-        this.classes = classes;
-    }
-
-    public Integer getNoOfStudents() {
-        return noOfStudents;
-    }
-
-    public void setNoOfStudents(Integer noOfStudents) {
-        this.noOfStudents = noOfStudents;
-    }
-
-    // equals() method
-
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Course course = (Course) o;
-        return Objects.equals(ID, course.ID) && Objects.equals(title, course.title) && Objects.equals(creditHours, course.creditHours) && Objects.equals(noOfStudents, course.noOfStudents) && Objects.equals(department, course.department) && Objects.equals(classes, course.classes);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ID, title, creditHours, noOfStudents, department, classes);
-    }
-
-    // toString() method
-
-    @Override
-    public String toString() {
-        return "Course{" +
-                "ID=" + ID +
-                ", title='" + title + '\'' +
-                ", creditHours=" + creditHours +
-                ", noOfStudents=" + noOfStudents +
-                ", department=" + department +
-                ", classes=" + classes +
-                '}';
-    }
 }

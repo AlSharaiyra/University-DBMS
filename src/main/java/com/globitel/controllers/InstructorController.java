@@ -1,9 +1,9 @@
 package com.globitel.controllers;
 
-import com.globitel.Day;
 import com.globitel.Main;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
+import com.globitel.enums.Role;
 import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
@@ -11,12 +11,12 @@ import com.globitel.repos.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import com.globitel.controllers.ClassController.ClassRecord;
 
 
-import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -79,8 +79,11 @@ public class InstructorController {
             String phone,
             String address,
             Integer department_id
+//            String password
     ) {
     }
+
+    BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
     @Transactional
     public void saveInstructor(Department department, Instructor instructor) {
@@ -106,6 +109,15 @@ public class InstructorController {
 
         Instructor instructor = new Instructor();
         instructor.setName(request.name);
+
+//        String firstName = request.name.split(" ")[0];
+//        String username = firstName + "_" + instructor.getID();
+//        String encodedPassword = encoder.encode(request.password);
+//
+//        instructor.setUsername(username);
+//        instructor.setPassword(encodedPassword);
+//        instructor.setRole(Role.ROLE_INSTRUCTOR);
+
         instructor.setEmail(request.email);
         instructor.setPhone(request.phone);
         instructor.setAddress(request.address);
@@ -239,7 +251,8 @@ public class InstructorController {
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
-                        clazz.getCourse().getDepartment().getName()))
+                        clazz.getCourse().getDepartment().getName(),
+                        clazz.getClassStatus()))
                 .collect(Collectors.toList());
     }
 }

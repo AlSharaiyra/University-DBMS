@@ -1,10 +1,11 @@
 package com.globitel.controllers;
 
-import com.globitel.Day;
+import com.globitel.enums.Day;
 import com.globitel.Main;
-import com.globitel.Status;
+import com.globitel.enums.EnrollmentStatus;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
+import com.globitel.enums.Role;
 import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
@@ -12,6 +13,7 @@ import com.globitel.repos.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -97,8 +99,11 @@ public class StudentController {
             String phone,
             String address,
             Integer department_id
+//            String password
     ) {
     }
+
+    BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
     @Transactional
     public void saveStudent(Department department, Student student) {
@@ -124,10 +129,25 @@ public class StudentController {
 
         Student student = new Student();
         student.setName(request.name);
+
+//        String firstName = request.name.split(" ")[0];
+//        String username = firstName + "_" + student.getID();
+//        String encodedPassword = encoder.encode(request.password);
+//
+//        student.setUsername(username);
+//        student.setPassword(encodedPassword);
+//        student.setRole(Role.ROLE_STUDENT);
+
         student.setLevel(request.level);
         student.setEmail(request.email);
         student.setPhone(request.phone);
         student.setAddress(request.address);
+
+        student.setGPA(null);
+        student.setCGPA(null);
+        student.setCurrentCreditHours(0);
+        student.setCumulativeCreditHours(0);
+        student.setTotalFailedHours(0);
         department.setStudentCount(department.getStudentCount() + 1);
 
 
@@ -251,7 +271,7 @@ public class StudentController {
         enrollment.setID(id);
         enrollment.setClazz(clazz);
         enrollment.setStudent(student);
-        enrollment.setStatus(Status.ACTIVE);
+        enrollment.setEnrollmentStatus(EnrollmentStatus.ACTIVE);
         enrollment.setGrade(null);
 
         clazz.setRegistered(clazz.getRegistered() + 1);
@@ -276,18 +296,46 @@ public class StudentController {
             Integer registered,
             String course,
             String department,
-            Status status,
+            EnrollmentStatus enrollmentStatus,
+            Double grade
+    ) {
+    }
+
+    public record nonActiveClasses(
+            Integer class_id,
+            String course,
+            String department,
+            EnrollmentStatus enrollmentStatus,
             Double grade
     ) {
     }
 
     // Get all classes joined by a student given ID
-    @GetMapping("/{id}/classes")
-    public List<ClassStudentRecord> getAllClasses(@PathVariable Integer id) {
+    @GetMapping("/{id}/classes/all")
+    public List<nonActiveClasses> getAllClasses(@PathVariable Integer id) {
         Student student = studentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
 
         List<Enrollment> enrollments = enrollmentRepo.findByStudent(student);
+
+        return enrollments.stream().map(classStudent -> {
+            Class clazz = classStudent.getClazz();
+            return new nonActiveClasses(
+                    clazz.getID(),
+                    clazz.getCourse().getTitle(),
+                    clazz.getCourse().getDepartment().getName(),
+                    classStudent.getEnrollmentStatus(),
+                    classStudent.getGrade());
+        }).collect(Collectors.toList());
+    }
+
+    // Get Active classes joined by a student given ID
+    @GetMapping("/{id}/classes/active")
+    public List<ClassStudentRecord> getActiveClasses(@PathVariable Integer id) {
+        Student student = studentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+
+        List<Enrollment> enrollments = enrollmentRepo.findActiveEnrollmentsByStudentId(id);
 
         return enrollments.stream().map(classStudent -> {
             Class clazz = classStudent.getClazz();
@@ -302,9 +350,108 @@ public class StudentController {
                     clazz.getRegistered(),
                     clazz.getCourse().getTitle(),
                     clazz.getCourse().getDepartment().getName(),
-                    classStudent.getStatus(),
-                    classStudent.getGrade()
-            );
+                    classStudent.getEnrollmentStatus(),
+                    classStudent.getGrade());
         }).collect(Collectors.toList());
     }
+
+    // Get all classes that a student failed, given ID
+    @GetMapping("/{id}/classes/failed")
+    public List<nonActiveClasses> getFailedClasses(@PathVariable Integer id) {
+        Student student = studentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+
+        List<Enrollment> enrollments = enrollmentRepo.findFailedEnrollmentsByStudentId(id);
+
+        return enrollments.stream().map(classStudent -> {
+            Class clazz = classStudent.getClazz();
+            return new nonActiveClasses(
+                    clazz.getID(),
+                    clazz.getCourse().getTitle(),
+                    clazz.getCourse().getDepartment().getName(),
+                    classStudent.getEnrollmentStatus(),
+                    classStudent.getGrade());
+        }).collect(Collectors.toList());
+    }
+
+    // Get all classes that a student passed, given ID
+    @GetMapping("/{id}/classes/passed")
+    public List<nonActiveClasses> getPassedClasses(@PathVariable Integer id) {
+        Student student = studentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+
+        List<Enrollment> enrollments = enrollmentRepo.findPassedEnrollmentsByStudentId(id);
+
+        return enrollments.stream().map(classStudent -> {
+            Class clazz = classStudent.getClazz();
+            return new nonActiveClasses(
+                    clazz.getID(),
+                    clazz.getCourse().getTitle(),
+                    clazz.getCourse().getDepartment().getName(),
+                    classStudent.getEnrollmentStatus(),
+                    classStudent.getGrade());
+        }).collect(Collectors.toList());
+    }
+
+    public record Results(
+            Integer grade
+    ) {
+    }
+
+//    @Transactional
+//    public void saveEnrollmentUpdates(Enrollment enrollment, Student student) {
+//        try {
+//            enrollmentRepo.save(enrollment);
+//            studentRepo.save(student);
+//        } catch (Exception e) {
+//            throw new RuntimeException("Failed to update enrollment data", e);
+//        }
+//    }
+
+    // update Enrollment data when a student finishes a class
+    @PutMapping("/{student_id}/classes/{class_id}")
+    public ResponseEntity<String> updateEnrollment(@RequestBody Results request, @PathVariable Integer student_id, @PathVariable Integer class_id) {
+        Student student = studentRepo.findById(student_id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + student_id));
+        Class clazz = classRepo.findById(class_id)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + class_id));
+
+        // Find the enrollment with student_id and class_id
+        Enrollment enrollment = enrollmentRepo.findByStudentAndClass(student_id, class_id)
+                .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found for student id: " + student_id + " and class id: " + class_id));
+        Double grade;
+        if (request.grade >= 95)
+            grade = 4.2;
+        else if (request.grade >= 85)
+            grade = 4.0;
+        else if (request.grade >= 80)
+            grade = 3.75;
+        else if (request.grade >= 77)
+            grade = 3.5;
+        else if (request.grade >= 73)
+            grade = 3.25;
+        else if (request.grade >= 70)
+            grade = 3.0;
+        else if (request.grade >= 67)
+            grade = 2.75;
+        else if (request.grade >= 63)
+            grade = 2.5;
+        else if (request.grade >= 60)
+            grade = 2.25;
+        else if (request.grade >= 57)
+            grade = 2.0;
+        else if (request.grade >= 53)
+            grade = 1.75;
+        else if (request.grade >= 50)
+            grade = 1.50;
+        else grade = 0.5;
+
+        enrollment.setGrade(grade);
+        enrollmentRepo.save(enrollment);
+
+//        saveEnrollmentUpdates(enrollment, student);
+
+        return ResponseEntity.ok("Successfully updated student data for student with ID: " + student_id + ", and class ID: " + class_id);
+    }
+
 }

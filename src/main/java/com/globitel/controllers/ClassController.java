@@ -1,8 +1,9 @@
 package com.globitel.controllers;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.globitel.Day;
-import com.globitel.Status;
+import com.globitel.enums.ClassStatus;
+import com.globitel.enums.Day;
+import com.globitel.enums.EnrollmentStatus;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
 import com.globitel.exceptions.ConflictException;
@@ -36,6 +37,8 @@ public class ClassController {
     private PlaceRepo placeRepo;
     @Autowired
     private ReservationRepo reservationRepo;
+    @Autowired
+    private StudentRepo studentRepo;
 
     public record ClassRecord(
             Integer class_id,
@@ -47,7 +50,8 @@ public class ClassController {
             Integer capacity,
             Integer registered,
             String course,
-            String department
+            String department,
+            ClassStatus status
     ) {
     }
 
@@ -65,7 +69,8 @@ public class ClassController {
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
-                        clazz.getCourse().getDepartment().getName()))
+                        clazz.getCourse().getDepartment().getName(),
+                        clazz.getClassStatus()))
                 .collect(Collectors.toList());
     }
 
@@ -82,7 +87,8 @@ public class ClassController {
                         clazz.getReservation().getPlace().getCapacity(),
                         clazz.getRegistered(),
                         clazz.getCourse().getTitle(),
-                        clazz.getCourse().getDepartment().getName()))
+                        clazz.getCourse().getDepartment().getName(),
+                        clazz.getClassStatus()))
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found with ID: " + id));
     }
 
@@ -117,7 +123,7 @@ public class ClassController {
         Place place = placeRepo.findById(request.place_id)
                 .orElseThrow(() -> new ResourceNotFoundException("Place not found with ID: " + request.place_id));
 
-        if (request.end_time.isBefore(request.start_time)){
+        if (request.end_time.isBefore(request.start_time)) {
             throw new IllegalStateException("End time should be after start time");
         }
 
@@ -136,12 +142,85 @@ public class ClassController {
         reservation.setPlace(place);
         toAdd.setCourse(course);
         toAdd.setReservation(reservation);
+        toAdd.setClassStatus(ClassStatus.ACTIVE);
+        toAdd.setRegistered(0);
 
 //        classRepo.save(toAdd);
 //        reservationRepo.save(reservation);
 
         saveClass(toAdd, reservation);
         return ResponseEntity.status(HttpStatus.CREATED).body("Class added successfully");
+    }
+
+//    @Transactional
+//    public void deactivateAllActiveClasses() {
+//        classRepo.updateAllActiveClassesToPassive();
+//    }
+
+    @Transactional
+    public void deactivateAllActiveClasses() {
+        // Retrieve all active classes
+        List<Class> activeClasses = classRepo.findAllActiveClasses();
+
+        // Loop through the list and update each class's status
+        for (Class clazz : activeClasses) {
+            clazz.setClassStatus(ClassStatus.PASSIVE);
+            classRepo.save(clazz);  // Save the updated class
+        }
+    }
+
+    @PostMapping("/end-semester")
+    @Transactional
+    public ResponseEntity<String> endSemester() {
+        try {
+            deactivateAllActiveClasses();
+        } catch (Exception e) {
+//            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error occurred while deactivating classes" + e);
+        }
+        List<Student> students = studentRepo.findAll();
+
+        for (Student student : students) {
+            List<Enrollment> activeEnrollments = enrollmentRepo.findActiveEnrollmentsByStudentId(student.getID());
+            List<Enrollment> allEnrollments = enrollmentRepo.findAllByStudentId(student.getID());
+
+            double GPA = 0.0, CGPA = 0.0;
+            try {
+                for (Enrollment enrollment : activeEnrollments) {
+                    GPA += enrollment.getGrade() * enrollment.getClazz().getCourse().getCreditHours();
+                    if (enrollment.getGrade() >= 1.5) {
+                        enrollment.setEnrollmentStatus(EnrollmentStatus.PASSED);
+                        student.setCumulativeCreditHours(student.getCumulativeCreditHours() + enrollment.getClazz().getCourse().getCreditHours());
+                    } else {
+                        enrollment.setEnrollmentStatus(EnrollmentStatus.FAILED);
+                        student.setTotalFailedHours(student.getTotalFailedHours() + enrollment.getClazz().getCourse().getCreditHours());
+                    }
+                    enrollmentRepo.save(enrollment);
+                }
+                if (student.getCurrentCreditHours() > 0)
+                    GPA /= student.getCurrentCreditHours();
+                student.setGPA(GPA);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error occurred while calculating GPA for student ID: " + student.getID());
+            }
+
+            try {
+                for (Enrollment enrollment : allEnrollments) {
+                    CGPA += enrollment.getGrade() * enrollment.getClazz().getCourse().getCreditHours();
+                }
+                if (student.getCumulativeCreditHours() == 0)
+                    CGPA = GPA;
+                else CGPA /= student.getCumulativeCreditHours();
+                student.setCGPA(CGPA);
+
+                student.setCurrentCreditHours(0);
+                studentRepo.save(student);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error occurred while calculating CGPA for student ID: " + student.getID());
+            }
+        }
+
+        return ResponseEntity.ok("All active classes have been set to passive.");
     }
 
     public record StudentClassRecord(
@@ -155,7 +234,7 @@ public class ClassController {
             Integer current_credit_hours,
             Integer cumulative_credit_hours,
             Integer plan_hours,
-            Status status,
+            EnrollmentStatus enrollmentStatus,
             Double grade
     ) {
     }
@@ -181,7 +260,7 @@ public class ClassController {
                     student.getCurrentCreditHours(),
                     student.getCumulativeCreditHours(),
                     student.getDepartment().getPlanHours(),
-                    classStudent.getStatus(),
+                    classStudent.getEnrollmentStatus(),
                     classStudent.getGrade()
             );
         }).collect((Collectors.toList()));
