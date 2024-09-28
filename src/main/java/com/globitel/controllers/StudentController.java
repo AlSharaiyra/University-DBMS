@@ -5,7 +5,6 @@ import com.globitel.Main;
 import com.globitel.enums.EnrollmentStatus;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
-import com.globitel.enums.Role;
 import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
@@ -32,15 +31,11 @@ public class StudentController {
     @Autowired
     private ClassRepo classRepo;
     @Autowired
-    private InstructorRepo instructorRepo;
-    @Autowired
     private Main mainApp;
     @Autowired
     private EnrollmentRepo enrollmentRepo;
     @Autowired
     private CourseRepo courseRepo;
-    @Autowired
-    private ReservationRepo reservationRepo;
 
     public record StudentRecord(
             Integer student_id,
@@ -103,7 +98,7 @@ public class StudentController {
     ) {
     }
 
-    BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
+//    BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
     @Transactional
     public void saveStudent(Department department, Student student) {

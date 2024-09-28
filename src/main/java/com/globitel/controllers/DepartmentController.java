@@ -1,7 +1,6 @@
 package com.globitel.controllers;
 
 import com.globitel.entities.Department;
-import com.globitel.entities.Student;
 import com.globitel.exceptions.ResourceNotFoundException;
 import com.globitel.repos.*;
 import org.springframework.beans.factory.annotation.Autowired;

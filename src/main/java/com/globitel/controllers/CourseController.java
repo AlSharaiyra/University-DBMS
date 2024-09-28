@@ -6,7 +6,6 @@ import com.globitel.repos.ClassRepo;
 import com.globitel.repos.CourseRepo;
 import com.globitel.repos.DepartmentRepo;
 
-import com.globitel.entities.Class;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

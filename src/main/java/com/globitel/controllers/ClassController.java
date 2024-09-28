@@ -30,8 +30,6 @@ public class ClassController {
     @Autowired
     private CourseRepo courseRepo;
     @Autowired
-    private InstructorRepo instructorRepo;
-    @Autowired
     private EnrollmentRepo enrollmentRepo;
     @Autowired
     private PlaceRepo placeRepo;

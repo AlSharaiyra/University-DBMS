@@ -3,7 +3,6 @@ package com.globitel.controllers;
 import com.globitel.Main;
 import com.globitel.entities.*;
 import com.globitel.entities.Class;
-import com.globitel.enums.Role;
 import com.globitel.exceptions.ConflictException;
 import com.globitel.exceptions.DuplicateEntryException;
 import com.globitel.exceptions.ResourceNotFoundException;
@@ -30,11 +29,7 @@ public class InstructorController {
     @Autowired
     private ClassRepo classRepo;
     @Autowired
-    private StudentRepo studentRepo;
-    @Autowired
     Main mainApp;
-    @Autowired
-    private ReservationRepo reservationRepo;
 
     public record InstructorRecord(
             Integer instructor_id,
@@ -83,7 +78,7 @@ public class InstructorController {
     ) {
     }
 
-    BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
+//    BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
     @Transactional
     public void saveInstructor(Department department, Instructor instructor) {
